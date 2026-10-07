@@ -2,6 +2,8 @@
 
 A lightweight, static web app for planning marketing territories by ZIP code and exporting presentation-ready PDF maps.
 
+**Live app:** https://zbedir.github.io/zip-territory-planner/
+
 ## Run
 
 ```bash
