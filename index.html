@@ -10,8 +10,11 @@
 <body>
   <aside id="panel">
     <header>
-      <h1>ZIP Territory Planner</h1>
-      <p class="sub" id="stats">0 ZIPs · 0 territories</p>
+      <div>
+        <h1>ZIP Territory Planner</h1>
+        <p class="sub" id="stats">0 ZIPs · 0 territories</p>
+      </div>
+      <button type="button" id="share" title="Copy a link that opens this plan for anyone, ready to edit">Copy share link</button>
     </header>
 
     <section class="tools" aria-label="Map tools">
@@ -149,6 +152,11 @@
     <form id="goto" autocomplete="off">
       <input type="search" id="goto-zip" placeholder="Go to ZIP" inputmode="numeric" aria-label="Go to ZIP">
     </form>
+    <div id="share-banner" role="status" hidden>
+      <span class="text"></span>
+      <button type="button" class="restore">Restore my previous plan</button>
+      <button type="button" class="close" aria-label="Dismiss">✕</button>
+    </div>
     <div id="tip" hidden></div>
     <div id="legend" hidden></div>
     <div id="toast" role="status" hidden></div>

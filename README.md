@@ -27,7 +27,8 @@ npm start            # http://localhost:8080
   - **Legend shows:** *Territory names* (with counts) or *ZIP codes* (each territory's ZIPs listed under its color). The ZIP legend widens to fit. If a list is still too long, it ends with "+N more" and a full ZIP list page is added.
   - Type `{territory}` in the title or subtitle to insert the territory name.
   - Also: page size, orientation, legend position (right, bottom, or none), quality, and optional ZIP-list pages.
-- Your work autosaves in the browser (localStorage). Export CSV to keep a durable copy or share it.
+- **Copy share link** (top of the panel) packs the whole plan (territories, colors, ZIPs, map view) into a link. Whoever opens it gets their own editable copy, and can send changes back with a new link. If they already had a plan, it's backed up, and a banner offers "Restore my previous plan". Nothing goes to a server. Links stay short for typical plans (~1,000 characters for 300 ZIPs). Very large plans make long links that some chat apps cut off; use CSV for those.
+- Your work autosaves in the browser (localStorage). Export CSV to keep a durable copy.
 
 ## Data
 

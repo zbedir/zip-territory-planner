@@ -5,6 +5,9 @@
   const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#59a14f', '#b07aa1', '#edc948', '#76b7b2',
     '#ff9da7', '#9c755f', '#1f77b4', '#d62728', '#17becf', '#bcbd22', '#8c564b', '#7f7f7f'];
   const STORE_KEY = 'zip-territory-planner:v1';
+  const BACKUP_KEY = 'zip-territory-planner:backup';
+  // Share links made from a local copy point at the public site so others can open them.
+  const PUBLIC_URL = 'https://zbedir.github.io/zip-territory-planner/';
   const GLYPHS = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
   const BASEMAPS = {
     light: 'https://tiles.openfreemap.org/styles/positron',
@@ -159,6 +162,104 @@
       }
     } catch { /* ignore */ }
     if (!state.territories.length) state.activeId = addTerritory().id;
+  }
+
+  // ---------------------------------------------------------------- share links
+  // A share link carries the whole plan in the URL hash (compressed), so no server is needed.
+  // Opening one gives the recipient their own editable copy; their current plan is backed up.
+
+  async function deflate(text) {
+    const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function inflate(b64) {
+    const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).text();
+  }
+
+  async function buildShareLink() {
+    const byT = new Map(state.territories.map((t) => [t.id, []]));
+    for (const [zip, tid] of state.assign) byT.get(tid)?.push(zip);
+    const c = map.getCenter();
+    const plan = {
+      v: 1,
+      t: state.territories.map((t) => [t.name, t.color, byT.get(t.id).sort().join('')]),
+      a: Math.max(0, state.territories.findIndex((t) => t.id === state.activeId)),
+      m: [+c.lng.toFixed(4), +c.lat.toFixed(4), +map.getZoom().toFixed(2)],
+    };
+    const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    const base = local ? PUBLIC_URL : location.origin + location.pathname;
+    return `${base}#plan=${await deflate(JSON.stringify(plan))}`;
+  }
+
+  async function copyShareLink() {
+    if (!state.assign.size) { toast('Add some ZIPs before sharing'); return; }
+    const url = await buildShareLink();
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(url.length > 8000
+        ? `Link copied, but it’s long (${fmt(url.length)} characters). Some chat apps may cut it off; send a CSV if it doesn’t open.`
+        : 'Share link copied. Anyone who opens it gets their own editable copy.', 5000);
+    } catch {
+      window.prompt('Copy this share link:', url);
+    }
+  }
+
+  /** If the URL carries a shared plan, make it the current plan. Returns its map view, or null. */
+  async function openSharedPlan() {
+    const m = location.hash.match(/[#&]plan=([\w-]+)/);
+    if (!m) return null;
+    history.replaceState(null, '', location.pathname + location.search);
+    let plan;
+    try {
+      plan = JSON.parse(await inflate(m[1]));
+    } catch {
+      toast('This share link is damaged or incomplete. Ask for it again.', 8000);
+      return null;
+    }
+
+    let backedUp = false;
+    if (state.assign.size) {
+      try { localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORE_KEY)); backedUp = true; } catch { /* ignore */ }
+    }
+    state.territories = [];
+    state.assign = new Map();
+    undoStack.length = 0;
+    for (const [name, color, zips] of plan.t ?? []) {
+      const t = addTerritory(name, color);
+      for (let i = 0; i + 5 <= zips.length; i += 5) state.assign.set(zips.slice(i, i + 5), t.id);
+    }
+    if (!state.territories.length) addTerritory();
+    state.activeId = (state.territories[plan.a] ?? state.territories[0]).id;
+    save();
+    showShareBanner(backedUp);
+    return Array.isArray(plan.m) ? plan.m : null;
+  }
+
+  function showShareBanner(backedUp) {
+    const banner = $('#share-banner');
+    const used = new Set(state.assign.values()).size;
+    banner.querySelector('.text').textContent =
+      `Opened a shared plan: ${fmt(state.assign.size)} ZIPs in ${used} territor${used === 1 ? 'y' : 'ies'}. Your edits stay in your browser. Use “Copy share link” to send them back.`;
+    banner.querySelector('.restore').hidden = !backedUp;
+    banner.hidden = false;
+  }
+
+  function restoreBackup() {
+    try {
+      const backup = localStorage.getItem(BACKUP_KEY);
+      if (!backup) return;
+      if (!confirm('Replace the shared plan with your previous plan? Copy a share link first if you want to keep the shared one.')) return;
+      localStorage.setItem(STORE_KEY, backup);
+      localStorage.removeItem(BACKUP_KEY);
+      location.reload();
+    } catch { toast('Couldn’t restore your previous plan'); }
   }
 
   // ---------------------------------------------------------------- assignments
@@ -1109,6 +1210,13 @@
     $('#pdf-export').addEventListener('click', exportPdf);
     window.addEventListener('resize', () => !$('#frame').hidden && updateFrame());
 
+    // sharing
+    $('#share').addEventListener('click', copyShareLink);
+    $('#share-banner .restore').addEventListener('click', restoreBackup);
+    $('#share-banner .close').addEventListener('click', () => { $('#share-banner').hidden = true; });
+    // Pasting a new share link into an open tab only changes the hash; reload to open it.
+    window.addEventListener('hashchange', () => { if (/[#&]plan=/.test(location.hash)) location.reload(); });
+
     // keyboard
     document.addEventListener('keydown', (e) => {
       if (e.target.closest('input, textarea, select')) return;
@@ -1165,6 +1273,7 @@
   // ---------------------------------------------------------------- boot
   async function init() {
     load();
+    const sharedView = await openSharedPlan();
     bindUi();
 
     const protocol = new pmtiles.Protocol();
@@ -1172,8 +1281,8 @@
     map = new maplibregl.Map({
       container: 'map',
       style: BASEMAPS.light,
-      center: [-96.5, 38.5],
-      zoom: 3.7,
+      center: sharedView ? [sharedView[0], sharedView[1]] : [-96.5, 38.5],
+      zoom: sharedView ? sharedView[2] : 3.7,
       minZoom: 2,
       maxZoom: 15,
       dragRotate: false,
@@ -1184,6 +1293,9 @@
     map.keyboard.disableRotation();
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'imperial' }), 'bottom-right');
+    // Keep the canvas matched to its box (e.g. when the page first lays out while hidden).
+    new ResizeObserver(() => map.resize()).observe($('#map-wrap'));
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) map.resize(); });
     bindMap();
     setMode(state.mode);
     renderAll();
