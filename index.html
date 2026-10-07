@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZIP Territory Planner</title>
+  <link rel="stylesheet" href="vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside id="panel">
+    <header>
+      <h1>ZIP Territory Planner</h1>
+      <p class="sub" id="stats">0 ZIPs · 0 territories</p>
+    </header>
+
+    <section class="tools" aria-label="Map tools">
+      <div class="seg" role="group" aria-label="Tool">
+        <button type="button" data-mode="view" title="View only — pan and hover (V)">View</button>
+        <button type="button" data-mode="click" title="Click a ZIP to add/remove it (C)">Click</button>
+        <button type="button" data-mode="lasso" title="Draw around ZIPs to add them (L)">Lasso</button>
+      </div>
+      <label class="toggle" title="Remove ZIPs instead of adding (E, or hold Alt)">
+        <input type="checkbox" id="erase"> Erase
+      </label>
+      <button type="button" id="undo" title="Undo (⌘Z / Ctrl+Z)" disabled>Undo</button>
+    </section>
+    <p class="hint" id="mode-hint"></p>
+
+    <details open>
+      <summary>Territories</summary>
+      <div id="terr-list"></div>
+      <div class="row">
+        <button type="button" id="add-terr">+ Add territory</button>
+        <button type="button" id="fit-all">Zoom to all</button>
+      </div>
+    </details>
+
+    <details open>
+      <summary>Add ZIPs</summary>
+      <textarea id="zip-input" rows="4" spellcheck="false"
+        placeholder="10001, 10002 10003&#10;Ranges: 10001-10099&#10;Prefixes: 100*"></textarea>
+      <div class="row">
+        <button type="button" id="zip-add" class="primary">Add to <span class="active-name">territory</span></button>
+        <button type="button" id="zip-remove">Remove</button>
+      </div>
+      <label class="check"><input type="checkbox" id="protect"> Don’t take ZIPs from other territories</label>
+      <div id="zip-msg" class="msg" aria-live="polite"></div>
+    </details>
+
+    <details>
+      <summary>Import / export data</summary>
+      <p class="hint">CSV with a <code>zip</code> column, plus optional <code>territory</code> and <code>color</code> columns. Without a territory column, ZIPs go to the active territory.</p>
+      <div class="row">
+        <label class="btn">Import CSV<input type="file" id="csv-file" accept=".csv,.txt,text/csv" hidden></label>
+        <button type="button" id="csv-export">Export CSV</button>
+      </div>
+      <label class="check"><input type="checkbox" id="csv-replace"> Replace everything on import</label>
+      <div class="row">
+        <button type="button" id="sample">Load sample (NYC)</button>
+        <button type="button" id="clear-all" class="danger">Clear all</button>
+      </div>
+      <div id="csv-msg" class="msg" aria-live="polite"></div>
+    </details>
+
+    <details>
+      <summary>Map display</summary>
+      <label class="field">Basemap
+        <select id="basemap">
+          <option value="light">Light</option>
+          <option value="streets">Streets</option>
+          <option value="blank">None (states only)</option>
+        </select>
+      </label>
+      <label class="field">Fill opacity
+        <input type="range" id="opacity" min="0.2" max="0.95" step="0.05" value="0.6">
+      </label>
+      <label class="check"><input type="checkbox" id="show-borders" checked> ZIP borders</label>
+      <label class="check"><input type="checkbox" id="show-labels" checked> ZIP labels (zoomed in)</label>
+      <label class="check"><input type="checkbox" id="show-legend" checked> Legend on map</label>
+    </details>
+
+    <details id="sec-pdf">
+      <summary>Export PDF</summary>
+      <p class="hint">Frame the map inside the dashed box. That area goes into the PDF.</p>
+      <label class="field">Territories
+        <select id="pdf-scope">
+          <option value="all">All on one map</option>
+          <option value="active">Active territory only</option>
+          <option value="each">Each territory on its own page</option>
+        </select>
+      </label>
+      <p class="hint" id="pdf-scope-hint"></p>
+      <label class="check" id="pdf-others-row"><input type="checkbox" id="pdf-others"> Show other territories on the map</label>
+      <label class="field">Title <input type="text" id="pdf-title" value="Marketing Territories"></label>
+      <p class="hint">Type <code>{territory}</code> to insert the territory name.</p>
+      <label class="field">Subtitle <input type="text" id="pdf-subtitle"></label>
+      <div class="grid2">
+        <label class="field">Page
+          <select id="pdf-size">
+            <option value="letter">Letter</option>
+            <option value="legal">Legal</option>
+            <option value="tabloid">Tabloid (11×17)</option>
+            <option value="a4">A4</option>
+            <option value="a3">A3</option>
+          </select>
+        </label>
+        <label class="field">Orientation
+          <select id="pdf-orient">
+            <option value="landscape">Landscape</option>
+            <option value="portrait">Portrait</option>
+          </select>
+        </label>
+        <label class="field">Legend
+          <select id="pdf-legend">
+            <option value="right">Right</option>
+            <option value="bottom">Bottom</option>
+            <option value="none">None</option>
+          </select>
+        </label>
+        <label class="field">Legend shows
+          <select id="pdf-legend-content">
+            <option value="names">Territory names</option>
+            <option value="zips">ZIP codes</option>
+          </select>
+        </label>
+        <label class="field">Quality
+          <select id="pdf-dpi">
+            <option value="150">Standard</option>
+            <option value="220" selected>High</option>
+          </select>
+        </label>
+      </div>
+      <label class="check" id="pdf-counts-row"><input type="checkbox" id="pdf-counts" checked> ZIP counts in legend</label>
+      <label class="check"><input type="checkbox" id="pdf-list"> Add ZIP list pages</label>
+      <div class="row">
+        <button type="button" id="pdf-fit">Fit territories in frame</button>
+        <button type="button" id="pdf-export" class="primary">Export PDF</button>
+      </div>
+    </details>
+
+    <footer class="hint">ZIP areas: U.S. Census Bureau 2020 ZCTAs. PO Box and single-business ZIPs have no area and won’t show on the map.</footer>
+  </aside>
+
+  <main id="map-wrap">
+    <div id="map"></div>
+    <svg id="lasso" aria-hidden="true"><path /></svg>
+    <div id="frame" hidden><span>PDF area</span></div>
+    <form id="goto" autocomplete="off">
+      <input type="search" id="goto-zip" placeholder="Go to ZIP" inputmode="numeric" aria-label="Go to ZIP">
+    </form>
+    <div id="tip" hidden></div>
+    <div id="legend" hidden></div>
+    <div id="toast" role="status" hidden></div>
+  </main>
+
+  <script src="vendor/maplibre-gl.js"></script>
+  <script src="vendor/pmtiles.js"></script>
+  <script src="vendor/papaparse.min.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "zip-territory-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lightweight ZIP-code (ZCTA) marketing territory planner",
+  "scripts": {
+    "build-data": "bash scripts/build-data.sh",
+    "vendor": "bash scripts/vendor.sh",
+    "start": "serve -l 8080 ."
+  },
+  "dependencies": {
+    "jspdf": "^2.5.2",
+    "maplibre-gl": "^5.0.0",
+    "papaparse": "^5.4.1",
+    "pmtiles": "^4.0.0"
+  },
+  "devDependencies": {
+    "mapshaper": "^0.6.100",
+    "serve": "^14.2.4"
+  }
+}
